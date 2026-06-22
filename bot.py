@@ -7,7 +7,7 @@ from telethon.tl.types import User
 
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
-SESSION = os.getenv("SESSION_NAME", "userbot")
+SESSION = os.getenv("SESSION")
 OWNER_ID = int(os.getenv("OWNER_ID"))
 
 client = TelegramClient(
