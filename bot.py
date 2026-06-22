@@ -44,7 +44,7 @@ async def ping(event):
 
     await event.reply("Pong!")
 
-@client.on(events.NewMessage(pattern=r"\.addbl$"))
+@client.on(events.NewMessage(pattern=r"(?i)^\.addbl$"))
 async def add_blacklist(event):
     if event.sender_id != OWNER_ID:
         return
@@ -59,7 +59,7 @@ async def add_blacklist(event):
     )
 
 
-@client.on(events.NewMessage(pattern=r"\.delbl$"))
+@client.on(events.NewMessage(pattern=r"(?i)^\.delbl$"))
 async def del_blacklist(event):
     if event.sender_id != OWNER_ID:
         return
