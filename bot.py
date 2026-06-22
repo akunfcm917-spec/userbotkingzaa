@@ -2,6 +2,7 @@ import os
 import asyncio
 
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 from telethon.errors import FloodWaitError
 from telethon.tl.types import User
 
@@ -11,7 +12,7 @@ SESSION = os.getenv("SESSION")
 OWNER_ID = int(os.getenv("OWNER_ID"))
 
 client = TelegramClient(
-    SESSION,
+    StringSession(SESSION),
     API_ID,
     API_HASH
 )
