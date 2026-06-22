@@ -8,6 +8,7 @@ from telethon.errors import FloodWaitError
 from telethon.tl.types import User
 from telethon import functions
 
+print("VERSION 999")
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 SESSION = os.getenv("SESSION")
