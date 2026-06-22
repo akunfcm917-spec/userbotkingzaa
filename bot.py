@@ -13,8 +13,6 @@ API_HASH = os.getenv("API_HASH")
 SESSION = os.getenv("SESSION")
 OWNER_ID = int(os.getenv("OWNER_ID"))
 
-BLACKLIST_FILE = "blacklist.txt"
-
 MONGO_URI = os.getenv("MONGO_URI")
 
 mongo = AsyncIOMotorClient(MONGO_URI)
