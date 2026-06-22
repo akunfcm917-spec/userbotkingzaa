@@ -11,6 +11,25 @@ API_HASH = os.getenv("API_HASH")
 SESSION = os.getenv("SESSION")
 OWNER_ID = int(os.getenv("OWNER_ID"))
 
+BLACKLIST_FILE = "blacklist.txt"
+
+
+def load_blacklist():
+    try:
+        with open(BLACKLIST_FILE, "r") as f:
+            return set(int(x.strip()) for x in f if x.strip())
+    except:
+        return set()
+
+
+def save_blacklist(data):
+    with open(BLACKLIST_FILE, "w") as f:
+        for item in data:
+            f.write(f"{item}\n")
+
+
+blacklist = load_blacklist()
+
 client = TelegramClient(
     StringSession(SESSION),
     API_ID,
@@ -24,6 +43,38 @@ async def ping(event):
         return
 
     await event.reply("Pong!")
+
+@client.on(events.NewMessage(pattern=r"\.addbl$"))
+async def add_blacklist(event):
+    if event.sender_id != OWNER_ID:
+        return
+
+    chat_id = event.chat_id
+
+    blacklist.add(chat_id)
+    save_blacklist(blacklist)
+
+    await event.reply(
+        f"✅ Chat berhasil di-blacklist\n\nID: `{chat_id}`"
+    )
+
+
+@client.on(events.NewMessage(pattern=r"\.delbl$"))
+async def del_blacklist(event):
+    if event.sender_id != OWNER_ID:
+        return
+
+    chat_id = event.chat_id
+
+    if chat_id in blacklist:
+        blacklist.remove(chat_id)
+        save_blacklist(blacklist)
+
+        await event.reply(
+            f"✅ Chat berhasil dihapus dari blacklist\n\nID: `{chat_id}`"
+        )
+    else:
+        await event.reply("Chat ini tidak ada dalam blacklist.")
 
 
 @client.on(events.NewMessage(pattern=r"\.bc (group|user|all)$"))
@@ -53,6 +104,8 @@ async def broadcast(event):
     async for dialog in client.iter_dialogs():
         try:
             target = dialog.entity
+            if dialog.id in blacklist:
+                continue
 
             if mode == "group":
                 if not dialog.is_group:
