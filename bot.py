@@ -1,6 +1,7 @@
 import os
 import asyncio
 
+from motor.motor_asyncio import AsyncIOMotorClient
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from telethon.errors import FloodWaitError
@@ -14,23 +15,13 @@ OWNER_ID = int(os.getenv("OWNER_ID"))
 
 BLACKLIST_FILE = "blacklist.txt"
 
+MONGO_URI = os.getenv("MONGO_URI")
 
-def load_blacklist():
-    
-    try:
-        with open(BLACKLIST_FILE, "r") as f:
-            return set(int(x.strip()) for x in f if x.strip())
-    except:
-        return set()
+mongo = AsyncIOMotorClient(MONGO_URI)
 
+db = mongo["telegram_bot"]
 
-def save_blacklist(data):
-    with open(BLACKLIST_FILE, "w") as f:
-        for item in data:
-            f.write(f"{item}\n")
-
-
-blacklist = load_blacklist()
+blacklist_col = db["blacklist"]
 autobc_task = None
 autofw_task = None
 
@@ -47,7 +38,9 @@ async def run_autobc(mode, reply, delay):
             try:
                 target = dialog.entity
 
-                if dialog.id in blacklist:
+                if await blacklist_col.find_one(
+                    {"chat_id": dialog.id}
+                ):
                     continue
 
                 if mode == "group":
@@ -88,7 +81,9 @@ async def run_autofw(mode, reply, delay):
 
                 target = dialog.entity
 
-                if dialog.id in blacklist:
+                if await blacklist_col.find_one(
+                    {"chat_id": dialog.id}
+                ):
                     continue
 
                 if mode == "group":
@@ -127,13 +122,14 @@ async def add_blacklist(event):
     if event.sender_id != OWNER_ID:
         return
 
-    chat_id = event.chat_id
-
-    blacklist.add(chat_id)
-    save_blacklist(blacklist)
+    await blacklist_col.update_one(
+        {"chat_id": event.chat_id},
+        {"$set": {"chat_id": event.chat_id}},
+        upsert=True
+    )
 
     await event.reply(
-        f"✅ Chat berhasil di-blacklist\n\nID: `{chat_id}`"
+        f"✅ Chat berhasil di-blacklist\n\nID: `{event.chat_id}`"
     )
 
 
@@ -142,14 +138,13 @@ async def del_blacklist(event):
     if event.sender_id != OWNER_ID:
         return
 
-    chat_id = event.chat_id
+    result = await blacklist_col.delete_one(
+        {"chat_id": event.chat_id}
+    )
 
-    if chat_id in blacklist:
-        blacklist.remove(chat_id)
-        save_blacklist(blacklist)
-
+    if result.deleted_count:
         await event.reply(
-            f"✅ Chat berhasil dihapus dari blacklist\n\nID: `{chat_id}`"
+            f"✅ Chat dihapus dari blacklist\n\nID: `{event.chat_id}`"
         )
     else:
         await event.reply("Chat ini tidak ada dalam blacklist.")
@@ -219,7 +214,9 @@ async def forward_broadcast(event):
         try:
             target = dialog.entity
 
-            if dialog.id in blacklist:
+            if await blacklist_col.find_one(
+                {"chat_id": dialog.id}
+            ):
                 continue
 
             if mode == "group":
@@ -366,7 +363,9 @@ async def broadcast(event):
     async for dialog in client.iter_dialogs():
         try:
             target = dialog.entity
-            if dialog.id in blacklist:
+            if await blacklist_col.find_one(
+                {"chat_id": dialog.id}
+            ):
                 continue
 
             if mode == "group":
