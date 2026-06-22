@@ -5,6 +5,7 @@ from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from telethon.errors import FloodWaitError
 from telethon.tl.types import User
+from telethon import functions
 
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
@@ -15,6 +16,7 @@ BLACKLIST_FILE = "blacklist.txt"
 
 
 def load_blacklist():
+    
     try:
         with open(BLACKLIST_FILE, "r") as f:
             return set(int(x.strip()) for x in f if x.strip())
@@ -29,12 +31,88 @@ def save_blacklist(data):
 
 
 blacklist = load_blacklist()
+autobc_task = None
+autofw_task = None
 
 client = TelegramClient(
     StringSession(SESSION),
     API_ID,
     API_HASH
 )
+
+async def run_autobc(mode, reply, delay):
+    while True:
+
+        async for dialog in client.iter_dialogs():
+            try:
+                target = dialog.entity
+
+                if dialog.id in blacklist:
+                    continue
+
+                if mode == "group":
+                    if not dialog.is_group:
+                        continue
+
+                elif mode == "user":
+                    if not isinstance(target, User):
+                        continue
+
+                    if getattr(target, "bot", False):
+                        continue
+
+                if reply.media:
+                    await client.send_file(
+                        dialog.id,
+                        reply.media,
+                        caption=reply.text or ""
+                    )
+                else:
+                    await client.send_message(
+                        dialog.id,
+                        reply.text or ""
+                    )
+
+                await asyncio.sleep(1)
+
+            except:
+                pass
+
+        await asyncio.sleep(delay * 60)
+
+async def run_autofw(mode, reply, delay):
+    while True:
+
+        async for dialog in client.iter_dialogs():
+            try:
+
+                target = dialog.entity
+
+                if dialog.id in blacklist:
+                    continue
+
+                if mode == "group":
+                    if not dialog.is_group:
+                        continue
+
+                elif mode == "user":
+                    if not isinstance(target, User):
+                        continue
+
+                    if getattr(target, "bot", False):
+                        continue
+
+                await client.forward_messages(
+                    dialog.id,
+                    reply
+                )
+
+                await asyncio.sleep(1)
+
+            except:
+                pass
+
+        await asyncio.sleep(delay * 60)
 
 
 @client.on(events.NewMessage(pattern=r"\.ping$"))
@@ -76,6 +154,190 @@ async def del_blacklist(event):
     else:
         await event.reply("Chat ini tidak ada dalam blacklist.")
 
+@client.on(events.NewMessage(pattern=r"\.cekid(?: (.+))?$"))
+async def cekid(event):
+    if event.sender_id != OWNER_ID:
+        return
+
+    try:
+        arg = event.pattern_match.group(1)
+
+        # Reply pesan
+        if event.is_reply:
+            msg = await event.get_reply_message()
+            sender = await msg.get_sender()
+
+            await event.reply(
+                f"👤 Nama: {getattr(sender, 'first_name', '-')}\n"
+                f"🆔 ID: `{sender.id}`"
+            )
+            return
+
+        # Username
+        if arg:
+            entity = await client.get_entity(arg)
+
+            await event.reply(
+                f"👤 Nama: {getattr(entity, 'first_name', getattr(entity, 'title', '-'))}\n"
+                f"🆔 ID: `{entity.id}`"
+            )
+            return
+
+        # Chat sekarang
+        chat = await event.get_chat()
+
+        await event.reply(
+            f"💬 Chat: {getattr(chat, 'title', 'Private Chat')}\n"
+            f"🆔 ID: `{event.chat_id}`"
+        )
+
+    except Exception as e:
+        await event.reply(f"Error: {e}")
+
+@client.on(events.NewMessage(pattern=r"\.fw (group|user|all)$"))
+async def forward_broadcast(event):
+    if event.sender_id != OWNER_ID:
+        return
+
+    if not event.is_reply:
+        return await event.reply(
+            "Reply pesan lalu gunakan:\n\n"
+            ".fw group\n"
+            ".fw user\n"
+            ".fw all"
+        )
+
+    mode = event.pattern_match.group(1)
+    reply = await event.get_reply_message()
+
+    sukses = 0
+    gagal = 0
+
+    status = await event.reply("⏳ Forward Broadcast dimulai...")
+
+    async for dialog in client.iter_dialogs():
+        try:
+            target = dialog.entity
+
+            if dialog.id in blacklist:
+                continue
+
+            if mode == "group":
+                if not dialog.is_group:
+                    continue
+
+            elif mode == "user":
+                if not isinstance(target, User):
+                    continue
+
+                if getattr(target, "bot", False):
+                    continue
+
+            await client.forward_messages(
+                dialog.id,
+                reply
+            )
+
+            sukses += 1
+            await asyncio.sleep(1)
+
+        except FloodWaitError as e:
+            await asyncio.sleep(e.seconds)
+
+        except:
+            gagal += 1
+
+    await status.edit(
+        f"✅ Forward selesai\n\n"
+        f"Berhasil : {sukses}\n"
+        f"Gagal    : {gagal}"
+    )
+
+@client.on(events.NewMessage(pattern=r"\.autobc (group|user|all) (\d+)$"))
+async def autobc(event):
+    global autobc_task
+
+    if event.sender_id != OWNER_ID:
+        return
+
+    if not event.is_reply:
+        return await event.reply(
+            "Reply pesan:\n.autobc all 60"
+        )
+
+    mode = event.pattern_match.group(1)
+    delay = int(event.pattern_match.group(2))
+
+    reply = await event.get_reply_message()
+
+    if autobc_task and not autobc_task.done():
+        autobc_task.cancel()
+
+    autobc_task = asyncio.create_task(
+        run_autobc(mode, reply, delay)
+    )
+
+    await event.reply(
+        f"✅ Auto BC aktif\n\nMode: {mode}\nDelay: {delay} menit"
+    )
+
+@client.on(events.NewMessage(pattern=r"\.stopautobc$"))
+async def stop_autobc(event):
+    global autobc_task
+
+    if event.sender_id != OWNER_ID:
+        return
+
+    if autobc_task and not autobc_task.done():
+        autobc_task.cancel()
+        autobc_task = None
+
+        await event.reply("✅ Auto BC dihentikan.")
+    else:
+        await event.reply("Tidak ada Auto BC yang aktif.")
+
+@client.on(events.NewMessage(pattern=r"\.autofw (group|user|all) (\d+)$"))
+async def autofw(event):
+    global autofw_task
+
+    if event.sender_id != OWNER_ID:
+        return
+
+    if not event.is_reply:
+        return await event.reply(
+            "Reply pesan:\n.autofw all 60"
+        )
+
+    mode = event.pattern_match.group(1)
+    delay = int(event.pattern_match.group(2))
+
+    reply = await event.get_reply_message()
+
+    if autofw_task and not autofw_task.done():
+        autofw_task.cancel()
+
+    autofw_task = asyncio.create_task(
+        run_autofw(mode, reply, delay)
+    )
+
+    await event.reply(
+        f"✅ Auto FW aktif\n\nMode: {mode}\nDelay: {delay} menit"
+    )
+
+@client.on(events.NewMessage(pattern=r"\.stopautofw$"))
+async def stop_autofw(event):
+    global autofw_task
+
+    if event.sender_id != OWNER_ID:
+        return
+
+    if autofw_task and not autofw_task.done():
+        autofw_task.cancel()
+        autofw_task = None
+
+        await event.reply("✅ Auto FW dihentikan.")
+    else:
+        await event.reply("Tidak ada Auto FW yang aktif.")
 
 @client.on(events.NewMessage(pattern=r"\.bc (group|user|all)$"))
 async def broadcast(event):
@@ -118,9 +380,9 @@ async def broadcast(event):
                 if getattr(target, "bot", False):
                     continue
 
-            await client.forward_messages(
+            await client.send_message(
                 dialog.id,
-                reply
+                reply.message
             )
 
             sukses += 1
