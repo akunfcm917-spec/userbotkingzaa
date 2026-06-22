@@ -65,7 +65,10 @@ async def broadcast(event):
             elif mode == "all":
                 pass
 
-            await reply.copy_to(dialog.id)
+            await client.send_message(
+                dialog.id,
+                reply.message
+            )
 
             sukses += 1
 
@@ -75,7 +78,10 @@ async def broadcast(event):
             await asyncio.sleep(e.seconds)
 
             try:
-                await reply.copy_to(dialog.id)
+                await client.send_message(
+                    dialog.id,
+                    reply.message
+                )
                 sukses += 1
             except:
                 gagal += 1
