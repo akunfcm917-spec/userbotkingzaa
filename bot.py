@@ -28,7 +28,10 @@ async def ping(event):
 
 @client.on(events.NewMessage(pattern=r"\.bc (group|user|all)$"))
 async def broadcast(event):
+    print("BC TERPANGGIL")
+
     if event.sender_id != OWNER_ID:
+        print("OWNER ID TIDAK COCOK")
         return
 
     if not event.is_reply:
@@ -62,32 +65,25 @@ async def broadcast(event):
                 if getattr(target, "bot", False):
                     continue
 
-            elif mode == "all":
-                pass
-
-            await client.send_message(
+            await client.forward_messages(
                 dialog.id,
-                reply.message
+                reply
             )
 
             sukses += 1
 
+            if sukses % 20 == 0:
+                print(f"Berhasil: {sukses}")
+
             await asyncio.sleep(1)
 
         except FloodWaitError as e:
+            print(f"FloodWait {e.seconds} detik")
             await asyncio.sleep(e.seconds)
 
-            try:
-                await client.send_message(
-                    dialog.id,
-                    reply.message
-                )
-                sukses += 1
-            except:
-                gagal += 1
-
-        except Exception:
+        except Exception as e:
             gagal += 1
+            print(f"GAGAL {dialog.name}: {e}")
 
     await status.edit(
         f"✅ Broadcast selesai\n\n"
@@ -104,6 +100,7 @@ async def main():
     print("LOGIN BERHASIL")
     print(f"Nama : {me.first_name}")
     print(f"ID   : {me.id}")
+    print(f"OWNER_ID : {OWNER_ID}")
 
     await client.run_until_disconnected()
 
