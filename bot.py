@@ -149,6 +149,23 @@ async def del_blacklist(event):
     else:
         await event.reply("Chat ini tidak ada dalam blacklist.")
 
+@client.on(events.NewMessage(pattern=r"\.listbl$"))
+async def list_blacklist(event):
+    if event.sender_id != OWNER_ID:
+        return
+
+    data = []
+
+    async for x in blacklist_col.find():
+        data.append(str(x["chat_id"]))
+
+    if not data:
+        return await event.reply("Blacklist kosong.")
+
+    await event.reply(
+        "📋 Blacklist:\n\n" + "\n".join(data)
+    )
+
 @client.on(events.NewMessage(pattern=r"\.cekid(?: (.+))?$"))
 async def cekid(event):
     if event.sender_id != OWNER_ID:
